@@ -2,14 +2,14 @@
   "model": "claude-opus-4-8",
   "permissions": {
     "allow": [
-      "bash",
-      "powershell",
-      "read",
-      "edit",
-      "write",
-      "glob",
-      "grep",
-      "agent"
+      "Bash",
+      "PowerShell",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Agent"
     ]
   },
   "skills": {
