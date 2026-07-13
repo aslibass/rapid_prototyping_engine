@@ -1,0 +1,27 @@
+[build]
+# Automatically detect and install dependencies based on package.json, requirements.txt, etc.
+builder = "heroku"
+
+[deploy]
+# Start command varies by tech stack
+# For Node/React: npm run build && npm start
+# For Python: python main.py
+# For Next.js: npm run build && npm start
+# For Static: npx serve -s dist
+startCommand = "{{START_COMMAND}}"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+
+[env]
+# Environment variables for this prototype
+# Add prototype-specific configuration here
+# PORT and RAILWAY_STATIC_URL are set automatically
+{{ENV_VARS}}
+
+[volumes]
+# For prototypes needing persistent storage
+# /data = "data"
+
+[domains]
+# Main deployment domain (auto-assigned by Railway)
+# {{PROTOTYPE_NAME}}.railway.app

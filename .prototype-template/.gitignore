@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Environment variables (never commit real secrets)
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+build/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Development
+.next/
+.nuxt/
+.cache/
+.turbo/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Railway
+.railway/
+railway.local.toml

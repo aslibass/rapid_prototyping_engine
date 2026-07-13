@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "gmail": {
+      "enabled": true,
+      "description": "Gmail integration for email management"
+    },
+    "playwright": {
+      "enabled": true,
+      "description": "Browser automation and testing"
+    },
+    "railway": {
+      "enabled": true,
+      "description": "Railway deployment and management"
+    },
+    "stripe": {
+      "enabled": true,
+      "description": "Stripe payment processing"
+    },
+    "ollama": {
+      "enabled": true,
+      "description": "Local LLM inference"
+    },
+    "interactive-brokers": {
+      "enabled": false,
+      "description": "Interactive Brokers trading API"
+    }
+  }
+}

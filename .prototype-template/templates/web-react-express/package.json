@@ -1,0 +1,21 @@
+{
+  "name": "prototype-triage",
+  "version": "0.1.0",
+  "description": "Rapid prototype created in design thinking workshop",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server/index.js",
+    "start": "node server/index.js",
+    "build": "echo 'Build step - customize as needed'"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": "18.x"
+  }
+}

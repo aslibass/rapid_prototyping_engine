@@ -1,0 +1,30 @@
+{
+  "model": "claude-opus-4-8",
+  "permissions": {
+    "allow": [
+      "bash",
+      "powershell",
+      "read",
+      "edit",
+      "write",
+      "glob",
+      "grep",
+      "agent",
+      "artifact"
+    ]
+  },
+  "skills": {
+    "enabled": true,
+    "paths": [
+      "../.claude/skills",
+      "../../.claude/skills"
+    ]
+  },
+  "plugins": {
+    "enabled": true,
+    "paths": [
+      "../.claude/plugins",
+      "../../.claude/plugins"
+    ]
+  }
+}
