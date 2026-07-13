@@ -3,559 +3,763 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HemeTriage — hematology case triage</title>
+<title>HemeTriage — haematology referral triage</title>
 <style>
+  /* ------------------------------------------------------------------
+     Palette taken from a Romanowsky-stained film: violet-black nuclei,
+     eosin orange cytoplasm, the pale violet cast of lab paper. The tier
+     ramp runs hot (emergency) to cool (no referral) so that colour and
+     position on the rail encode the same ordinal fact.
+     ------------------------------------------------------------------ */
   :root {
-    --ink: #14181d;
-    --ink-2: #55606c;
-    --ink-3: #8b95a1;
-    --line: #dfe4ea;
-    --panel: #ffffff;
-    --bg: #f2f4f7;
-    --red: #c02626;
-    --red-bg: #fdeceb;
-    --amber: #a76100;
-    --amber-bg: #fdf2e0;
-    --green: #1c7048;
-    --green-bg: #e7f4ed;
-    --accent: #1a4fa0;
+    --ink:      #1b1a2e;
+    --ink-2:    #4e4b66;
+    --ink-3:    #8b87a3;
+    --rule:     #ddd9e6;
+    --rule-2:   #eeebf3;
+    --paper:    #f7f6f9;
+    --panel:    #ffffff;
+    --violet:   #4a3da8;
+    --violet-w: #efedfa;
+
+    --t-EMERGENCY:    #b0143c;  --t-EMERGENCY-w:    #fdeaef;
+    --t-CATEGORY_1:   #c4571b;  --t-CATEGORY_1-w:   #fdefe5;
+    --t-CATEGORY_2:   #94720f;  --t-CATEGORY_2-w:   #fbf5e1;
+    --t-CATEGORY_3:   #2f7d5d;  --t-CATEGORY_3-w:   #e8f4ee;
+    --t-NOT_REQUIRED: #6e6b83;  --t-NOT_REQUIRED-w: #eeedf2;
+
+    --sans: ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    --mono: "SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, Menlo, monospace;
+    --serif: "Iowan Old Style", Charter, Georgia, serif;
   }
   * { box-sizing: border-box; margin: 0; }
   body {
-    font: 15px/1.55 "Iowan Old Style", "Charter", Georgia, serif;
-    background: var(--bg); color: var(--ink);
+    background: var(--paper); color: var(--ink);
+    font: 15px/1.55 var(--sans);
     -webkit-font-smoothing: antialiased;
   }
-  .mono, input, select, textarea, button, .tier-chip, .rule-detail {
-    font-family: "SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, Menlo, monospace;
-  }
+  .num { font-variant-numeric: tabular-nums; }
 
-  header {
-    background: var(--ink); color: #fff;
-    padding: 14px 24px; display: flex; align-items: baseline; gap: 16px;
-  }
-  header h1 { font-size: 19px; letter-spacing: .01em; font-weight: 600; }
-  header .sub { color: #9aa6b4; font-size: 13px; }
-  header .spacer { flex: 1; }
-  header .status { font-size: 12px; color: #9aa6b4; }
-  header .status b { color: #7fd6a5; font-weight: 500; }
-  header .status b.off { color: #e8a87c; }
-
-  .wrap {
-    max-width: 1360px; margin: 0 auto; padding: 20px;
-    display: grid; grid-template-columns: minmax(340px, 420px) 1fr; gap: 20px;
-    align-items: start;
-  }
-  @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } }
-
-  .panel {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
-  }
-  .panel > h2 {
-    font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
-    letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
-    padding: 14px 16px; border-bottom: 1px solid var(--line);
-    display: flex; align-items: center; gap: 8px;
-  }
-  .panel > h2 .note { text-transform: none; letter-spacing: 0; margin-left: auto; font-weight: 400; }
-  .body { padding: 16px; }
-
-  /* ---- case input ---- */
-  .samples { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
-  .samples button {
-    text-align: left; padding: 9px 11px; font-size: 12.5px;
-    background: #fafbfc; border: 1px solid var(--line); border-radius: 4px;
-    cursor: pointer; color: var(--ink);
-  }
-  .samples button:hover { border-color: var(--accent); background: #f4f7fc; }
-  .samples button .k { color: var(--ink-3); }
-
-  textarea {
-    width: 100%; min-height: 190px; padding: 10px; resize: vertical;
-    border: 1px solid var(--line); border-radius: 4px; font-size: 12.5px; line-height: 1.5;
-    color: var(--ink); background: #fdfdfe;
-  }
-  textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin: 14px 0; }
-  .field label {
-    display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
-    color: var(--ink-3); margin-bottom: 3px; font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  .field input {
-    width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px;
-    font-size: 13px; background: #fdfdfe;
-  }
-  .field input.filled { background: #fffbe8; border-color: #e8d48a; }
-  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; margin-bottom: 14px; }
-  .checks label {
-    font-size: 12.5px; display: flex; gap: 7px; align-items: center; cursor: pointer;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-
-  .btn {
-    padding: 9px 14px; border-radius: 4px; border: 1px solid transparent;
-    font-size: 12.5px; font-weight: 600; cursor: pointer;
-  }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #143d7c; }
-  .btn-ghost { background: #fff; border-color: var(--line); color: var(--ink); }
-  .btn-ghost:hover { border-color: var(--accent); }
-  .btn:disabled { opacity: .5; cursor: not-allowed; }
-  .row { display: flex; gap: 8px; }
-
-  /* ---- opinions ---- */
-  .opinions { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 1180px) { .opinions { grid-template-columns: 1fr; } }
-
-  .tier-chip {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 8px 14px; border-radius: 4px; font-size: 15px; font-weight: 700;
-    letter-spacing: .08em;
-  }
-  .t-RED { background: var(--red-bg); color: var(--red); }
-  .t-AMBER { background: var(--amber-bg); color: var(--amber); }
-  .t-GREEN { background: var(--green-bg); color: var(--green); }
-  .tier-chip .target {
-    font-size: 11px; font-weight: 500; letter-spacing: 0; opacity: .85;
-    font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-
-  .rules { list-style: none; padding: 0; margin: 14px 0 0; }
-  .rules li {
-    display: flex; gap: 9px; padding: 7px 0; border-top: 1px solid #f0f2f5;
-    font-size: 12.5px; color: var(--ink-3);
-  }
-  .rules li.fired { color: var(--ink); }
-  .rules .mark {
-    font-family: ui-monospace, monospace; width: 14px; flex: none; text-align: center;
+  /* small tracked caps — the interface's utility voice */
+  .eyebrow {
+    font: 600 10.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase;
     color: var(--ink-3);
   }
-  .rules li.fired .mark { color: var(--red); font-weight: 700; }
-  .rules li.fired.f-AMBER .mark { color: var(--amber); }
-  .rules li.fired.f-GREEN .mark { color: var(--green); }
-  .rule-detail { display: block; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
-  .rules li.fired .crit { font-weight: 600; }
 
-  .headline { font-size: 15.5px; line-height: 1.45; margin: 14px 0 8px; }
-  .reasoning { font-size: 14px; color: var(--ink-2); line-height: 1.6; }
-  .sublist { margin: 12px 0 0; padding: 0; list-style: none; }
-  .sublist h3 {
-    font: 600 10.5px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em;
-    text-transform: uppercase; color: var(--ink-3); margin: 14px 0 6px;
+  /* ---------- masthead ---------- */
+  header {
+    background: var(--ink); color: #fff;
+    padding: 14px 26px; display: flex; align-items: baseline; gap: 18px;
   }
-  .sublist li {
-    font-size: 13px; color: var(--ink-2); padding: 3px 0 3px 14px; position: relative;
+  header h1 { font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+  header h1 span { color: #9b8fe0; }
+  header .tagline { font-size: 12.5px; color: #a29fb8; }
+  header .spacer { flex: 1; }
+  header .conn { font: 500 11.5px/1 var(--mono); color: #a29fb8; }
+  header .conn b { color: #7fd6a5; font-weight: 500; }
+  header .conn b.off { color: #e0a06a; }
+
+  .provenance {
+    background: #26243d; color: #b3aecb; font-size: 11.5px; line-height: 1.5;
+    padding: 8px 26px; border-bottom: 1px solid #332f4e;
   }
-  .sublist li::before {
-    content: "→"; position: absolute; left: 0; color: var(--ink-3); font-size: 11px;
+  .provenance b { color: #ded9ee; font-weight: 600; }
+  .provenance a { color: #a99cf0; text-decoration: none; border-bottom: 1px dotted #6a5fb5; }
+
+  /* ---------- shell ---------- */
+  .shell { max-width: 1480px; margin: 0 auto; padding: 22px 26px 40px; }
+  .columns {
+    display: grid; grid-template-columns: 380px 1fr 1fr; gap: 22px; align-items: start;
+  }
+  @media (max-width: 1280px) { .columns { grid-template-columns: 340px 1fr; } .col-assistant { grid-column: 2; } }
+  @media (max-width: 940px)  { .columns { grid-template-columns: 1fr; } .col-assistant { grid-column: 1; } }
+
+  .card { background: var(--panel); border: 1px solid var(--rule); }
+  .card > header {
+    background: transparent; color: inherit; padding: 0;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--rule); padding: 13px 16px;
+  }
+  .card > header .attrib { margin-left: auto; font: 400 10.5px/1 var(--mono); color: var(--ink-3); }
+  .card .inner { padding: 16px; }
+
+  /* ---------- the referral, set as a pathology report ---------- */
+  .picks { display: flex; flex-direction: column; gap: 5px; margin-bottom: 15px; }
+  .picks button {
+    display: flex; gap: 9px; align-items: baseline; text-align: left;
+    padding: 8px 10px; background: var(--paper); border: 1px solid var(--rule);
+    font: 13px/1.3 var(--sans); color: var(--ink); cursor: pointer;
+  }
+  .picks button:hover { border-color: var(--violet); background: var(--violet-w); }
+  .picks .tag {
+    font: 600 9.5px/1 var(--mono); letter-spacing: .06em; color: var(--ink-3);
+    border: 1px solid var(--rule); padding: 3px 4px; flex: none;
   }
 
-  .muted { color: var(--ink-3); font-size: 13px; font-style: italic; }
-  .err {
-    background: var(--red-bg); border: 1px solid #f0c4c1; color: var(--red);
-    padding: 10px 12px; border-radius: 4px; font-size: 12.5px; margin-top: 12px;
+  textarea {
+    width: 100%; min-height: 150px; padding: 11px; resize: vertical;
+    border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+    font: 12.5px/1.55 var(--mono);
+  }
+  textarea:focus, input:focus { outline: 2px solid var(--violet); outline-offset: -1px; }
+
+  /* the report table: label / value / reference / flag — the real artifact */
+  .report { width: 100%; border-collapse: collapse; margin: 14px 0 4px; }
+  .report caption {
+    text-align: left; padding-bottom: 7px;
+    font: 600 10.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .report tr { border-bottom: 1px solid var(--rule-2); }
+  .report th {
+    text-align: left; font: 500 12.5px/1 var(--sans); color: var(--ink-2);
+    padding: 5px 0; width: 40%;
+  }
+  .report td { padding: 3px 0; }
+  .report td.val { width: 34%; }
+  .report input {
+    width: 100%; padding: 5px 7px; border: 1px solid transparent; background: var(--paper);
+    font: 13px/1 var(--mono); color: var(--ink); text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .report input:hover { border-color: var(--rule); }
+  .report input.pulled { background: #fdf6e3; }
+  .report td.ref { font: 11px/1 var(--mono); color: var(--ink-3); text-align: right; padding-right: 8px; white-space: nowrap; }
+  .report td.flag { width: 22px; font: 700 11px/1 var(--mono); text-align: center; }
+  .report td.flag.hi { color: var(--t-EMERGENCY); }
+  .report td.flag.lo { color: var(--violet); }
+
+  fieldset { border: 0; padding: 0; margin: 14px 0; }
+  fieldset legend {
+    font: 600 10.5px/1 var(--sans); letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3); padding: 0 0 8px;
+  }
+  .flags { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .flags label { display: flex; gap: 8px; align-items: center; font-size: 12.5px; cursor: pointer; }
+  .flags label.narrative { color: var(--violet); }
+  input[type=checkbox] { accent-color: var(--violet); }
+
+  .actions { display: flex; gap: 8px; margin-top: 4px; }
+  button.go {
+    flex: 1; padding: 11px; background: var(--violet); color: #fff; border: 0;
+    font: 600 12.5px/1 var(--sans); letter-spacing: .02em; cursor: pointer;
+  }
+  button.go:hover { background: #3b3090; }
+  button.go:disabled { opacity: .45; cursor: not-allowed; }
+  button.quiet {
+    padding: 11px 14px; background: #fff; border: 1px solid var(--rule); color: var(--ink);
+    font: 600 12.5px/1 var(--sans); cursor: pointer;
+  }
+  button.quiet:hover { border-color: var(--violet); color: var(--violet); }
+  button.quiet:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ---------- verdicts ---------- */
+  .verdict {
+    display: inline-flex; align-items: baseline; gap: 11px;
+    padding: 9px 13px; font: 700 15px/1 var(--mono); letter-spacing: .06em;
+  }
+  .verdict .when { font: 500 11px/1 var(--sans); letter-spacing: 0; opacity: .85; }
+  .expedite {
+    display: inline-block; margin-left: 7px; padding: 5px 8px;
+    background: var(--t-EMERGENCY); color: #fff;
+    font: 700 9.5px/1 var(--mono); letter-spacing: .08em;
+  }
+  .expedite-why {
+    margin-top: 11px; padding-left: 11px; border-left: 2px solid var(--t-CATEGORY_1);
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .tally { margin-top: 13px; font-size: 13px; color: var(--ink-2); }
+
+  /* criteria list — every rule cites its source */
+  .criteria { list-style: none; padding: 0; margin: 13px 0 0; }
+  .criteria li { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--rule-2); }
+  .criteria .bullet { flex: none; width: 12px; font: 700 12px/1.5 var(--mono); color: var(--rule); }
+  .criteria li.hit .bullet { color: var(--hit); }
+  .criteria .what { font-size: 12.5px; color: var(--ink-3); }
+  .criteria li.hit .what { color: var(--ink); font-weight: 600; }
+  .criteria .met { display: block; margin-top: 4px; font: 11.5px/1.4 var(--mono); color: var(--ink-2); }
+  .criteria .cite { display: block; margin-top: 4px; font-size: 10.5px; color: var(--ink-3); }
+  .criteria .cite em { font-style: normal; color: var(--violet); font-weight: 600; }
+
+  /* the assistant argues in prose — a colleague's note, so it's set in serif */
+  .lede { font: 16px/1.45 var(--serif); margin: 14px 0 9px; }
+  .argument { font: 14.5px/1.65 var(--serif); color: var(--ink-2); }
+  .aside h3 { margin: 16px 0 7px; }
+  .aside ul { list-style: none; padding: 0; }
+  .aside li {
+    position: relative; padding: 4px 0 4px 15px; font-size: 13px; color: var(--ink-2);
+  }
+  .aside li::before {
+    content: ""; position: absolute; left: 0; top: 12px;
+    width: 6px; height: 1px; background: var(--ink-3);
   }
 
-  /* ---- adjudication ---- */
-  .adjudicate { margin-top: 20px; }
-  .disagree {
-    display: flex; gap: 10px; align-items: baseline;
-    background: #fff8e6; border: 1px solid #e8cf8a; border-left: 4px solid var(--amber);
-    padding: 12px 14px; border-radius: 4px; margin-bottom: 16px; font-size: 13.5px;
+  .waiting { font: italic 13px/1.5 var(--serif); color: var(--ink-3); }
+  .fault {
+    padding: 10px 12px; margin-top: 12px; font-size: 12.5px;
+    background: var(--t-EMERGENCY-w); border: 1px solid #f0c2ce; color: var(--t-EMERGENCY);
   }
-  .disagree b { color: var(--amber); }
-  .agree {
-    background: #f4f7fc; border: 1px solid #cfdcf0; border-left: 4px solid var(--accent);
-    padding: 12px 14px; border-radius: 4px; margin-bottom: 16px; font-size: 13.5px;
-    color: var(--ink-2);
-  }
-  .tier-picker { display: flex; gap: 8px; margin-bottom: 12px; }
-  .tier-picker button {
-    flex: 1; padding: 12px; border-radius: 4px; border: 2px solid var(--line);
-    background: #fff; font-weight: 700; letter-spacing: .08em; font-size: 13px;
-    cursor: pointer; color: var(--ink-3);
-  }
-  .tier-picker button small {
-    display: block; font-weight: 400; letter-spacing: 0; font-size: 10.5px;
-    margin-top: 3px; font-family: ui-sans-serif, system-ui, sans-serif;
-  }
-  .tier-picker button.sel-RED { border-color: var(--red); background: var(--red-bg); color: var(--red); }
-  .tier-picker button.sel-AMBER { border-color: var(--amber); background: var(--amber-bg); color: var(--amber); }
-  .tier-picker button.sel-GREEN { border-color: var(--green); background: var(--green-bg); color: var(--green); }
 
-  .signed {
-    background: var(--green-bg); border: 1px solid #b9dfca; color: var(--green);
-    padding: 12px 14px; border-radius: 4px; font-size: 13.5px;
-  }
-  .ledger { font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
-  .ledger b { color: var(--ink); }
+  /* ==================================================================
+     THE RAIL — the signature. The five categories are ordinal, so the
+     distance between two opinions on this line is a real quantity: how
+     far apart they are. Protocol is a filled square, the assistant a
+     hollow ring, the haematologist a diamond. When the two disagree the
+     span between them fills with a hatched band. Then you click a stop.
+     ================================================================== */
+  .rail-card { margin-top: 22px; }
+  .rail-wrap { padding: 20px 16px 16px; }
 
-  .disclaimer {
-    max-width: 1360px; margin: 0 auto; padding: 4px 20px 28px;
-    font-size: 11.5px; color: var(--ink-3); font-style: italic;
+  .split-call {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    padding: 12px 14px; font-size: 13.5px;
   }
-  .spin { display: inline-block; animation: sp 1s linear infinite; }
-  @keyframes sp { to { transform: rotate(360deg); } }
+  .split-call.split {
+    background: repeating-linear-gradient(135deg, #fdeaef, #fdeaef 9px, #fbdde5 9px, #fbdde5 18px);
+    border: 1px solid #f0b9c8; color: var(--ink);
+  }
+  .split-call.split strong { color: var(--t-EMERGENCY); }
+  .split-call.aligned { background: var(--violet-w); border: 1px solid #d5cff5; color: var(--ink-2); }
+  .split-call .gap {
+    flex: none; font: 700 10px/1 var(--mono); letter-spacing: .08em;
+    background: var(--t-EMERGENCY); color: #fff; padding: 6px 8px;
+  }
+
+  /* Two opinion lanes stack above the axis; the stop you press below it is
+     your answer, so there is no third marker to collide with theirs. */
+  .rail { position: relative; margin: 0 0 26px; }
+  .lanes { position: relative; }
+  .lane { position: relative; height: 27px; }
+  .rail .band {
+    position: absolute; top: 2px; height: 52px; z-index: 0;
+    background: repeating-linear-gradient(135deg, var(--t-EMERGENCY), var(--t-EMERGENCY) 2px, transparent 2px, transparent 7px);
+    opacity: .35;
+    transition: left .35s cubic-bezier(.2,.7,.3,1), width .35s cubic-bezier(.2,.7,.3,1);
+  }
+  .marker {
+    position: absolute; top: 0; display: flex; align-items: center; gap: 7px;
+    transform: translateX(-50%); z-index: 2; padding: 4px 8px;
+    background: var(--panel); border: 1px solid var(--rule);
+    transition: left .35s cubic-bezier(.2,.7,.3,1);
+  }
+  .marker .glyph { width: 11px; height: 11px; flex: none; }
+  .marker .who { font: 700 9.5px/1 var(--mono); letter-spacing: .07em; white-space: nowrap; }
+  .m-protocol .glyph { background: var(--ink); }                                 /* filled square */
+  .m-protocol .who { color: var(--ink); }
+  .m-assistant .glyph { border: 2px solid var(--violet); border-radius: 50%; }   /* hollow ring */
+  .m-assistant .who { color: var(--violet); }
+  .marker[hidden] { display: none; }
+
+  .axis { position: relative; height: 2px; background: var(--rule); margin-bottom: 0; }
+
+  .stops { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); }
+  .stop {
+    position: relative; padding: 16px 4px 0; background: none; border: 0; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+  }
+  .stop .tick { position: absolute; top: 0; width: 2px; height: 9px; background: var(--rule); }
+  .stop .name {
+    font: 700 11px/1 var(--mono); letter-spacing: .07em; color: var(--ink-3);
+    border: 1.5px solid var(--rule-2); padding: 8px 10px; transition: all .18s;
+  }
+  .stop .when { font: 500 10.5px/1 var(--sans); color: var(--ink-3); }
+  .stop:hover .name { color: var(--c); border-color: var(--c); }
+  .stop[aria-pressed="true"] .name { color: #fff; background: var(--c); border-color: var(--c); }
+  .stop[aria-pressed="true"] .when { color: var(--ink); font-weight: 600; }
+  .stop:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+
+  .legend-note { margin-top: 9px; font-size: 11px; color: var(--ink-3); }
+  .legend-note b { color: var(--violet); font-weight: 600; }
+
+  .not-met {
+    margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--rule);
+  }
+
+  .signing { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+  .signing label { display: block; margin-bottom: 6px; }
+  .signing .req { color: var(--t-CATEGORY_1); text-transform: none; letter-spacing: 0; font-weight: 500; }
+  .signing input {
+    width: 100%; padding: 10px; border: 1px solid var(--rule); background: var(--paper);
+    font: 13px/1 var(--sans); color: var(--ink);
+  }
+  .receipt {
+    margin-top: 14px; padding: 11px 13px; font-size: 13px;
+    background: var(--t-CATEGORY_3-w); border: 1px solid #bcdfcd; color: var(--t-CATEGORY_3);
+  }
+  .ledger { margin-top: 12px; font-size: 12.5px; color: var(--ink-3); }
+  .ledger b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  footer { max-width: 1480px; margin: 0 auto; padding: 0 26px 34px; font-size: 11.5px; color: var(--ink-3); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>HemeTriage</h1>
-  <span class="sub">Referral triage &middot; protocol + assistant &middot; hematologist signs off</span>
+  <h1>Heme<span>Triage</span></h1>
+  <span class="tagline">Haematology referral triage — the protocol, an assistant, and your signature</span>
   <span class="spacer"></span>
-  <span class="status" id="status"></span>
+  <span class="conn" id="conn"></span>
 </header>
+<div class="provenance" id="provenance"></div>
 
-<div class="wrap">
+<main class="shell">
+  <div class="columns">
 
-  <!-- ============ CASE ============ -->
-  <section class="panel">
-    <h2>The case</h2>
-    <div class="body">
-      <div class="samples" id="samples"></div>
+    <!-- ---------- referral ---------- -->
+    <section class="card">
+      <header><span class="eyebrow">The referral</span></header>
+      <div class="inner">
+        <div class="picks" id="picks"></div>
 
-      <textarea id="note" placeholder="Paste the referral letter here…"></textarea>
-      <div class="row" style="margin-top:10px">
-        <button class="btn btn-ghost" id="btn-extract" style="flex:1">Extract labs from letter</button>
-      </div>
-
-      <div class="grid">
-        <div class="field"><label>Age</label><input id="f-age" type="number"></div>
-        <div class="field"><label>Sex</label><input id="f-sex" maxlength="1" placeholder="M / F"></div>
-        <div class="field"><label>Hb (g/L)</label><input id="f-hb" type="number"></div>
-        <div class="field"><label>WBC (×10⁹/L)</label><input id="f-wbc" type="number" step="0.1"></div>
-        <div class="field"><label>Platelets (×10⁹/L)</label><input id="f-plt" type="number"></div>
-        <div class="field"><label>Neutrophils (×10⁹/L)</label><input id="f-anc" type="number" step="0.1"></div>
-      </div>
-
-      <div class="checks">
-        <label><input type="checkbox" id="f-blastsOnSmear"> Blasts on smear</label>
-        <label><input type="checkbox" id="f-fever"> Fever</label>
-        <label><input type="checkbox" id="f-activeBleeding"> Active bleeding</label>
-        <label><input type="checkbox" id="f-lymphadenopathy"> Lymphadenopathy</label>
-        <label><input type="checkbox" id="f-bSymptoms"> B symptoms</label>
-      </div>
-
-      <div class="row">
-        <button class="btn btn-primary" id="btn-run" style="flex:1">Triage this case</button>
-        <button class="btn btn-ghost" id="btn-clear">Clear</button>
-      </div>
-      <div id="case-err"></div>
-    </div>
-  </section>
-
-  <!-- ============ OPINIONS + ADJUDICATION ============ -->
-  <div>
-    <div class="opinions">
-
-      <section class="panel">
-        <h2>Protocol <span class="note">deterministic · no AI</span></h2>
-        <div class="body" id="protocol">
-          <p class="muted">Load a case and press <em>Triage this case</em>.</p>
+        <textarea id="note" aria-label="Referral letter" placeholder="Paste the referral letter…"></textarea>
+        <div class="actions" style="margin-top:9px">
+          <button class="quiet" id="pull" style="flex:1">Read the letter</button>
         </div>
-      </section>
 
-      <section class="panel">
-        <h2>Assistant <span class="note">claude-opus-4-8 · advisory</span></h2>
-        <div class="body" id="assistant">
-          <p class="muted">The assistant reads the whole letter, not just the numbers.</p>
-        </div>
-      </section>
+        <table class="report">
+          <caption>Full blood count</caption>
+          <tbody id="report"></tbody>
+        </table>
 
-    </div>
+        <fieldset>
+          <legend>Findings</legend>
+          <div class="flags" id="flags"></div>
+          <p class="legend-note"><b>Violet</b> — stated only in the letter. A blood count never carries these,
+          which is where the assistant earns its place.</p>
+        </fieldset>
 
-    <section class="panel adjudicate" id="adjudicate" hidden>
-      <h2>Your decision <span class="note">this is the output of record</span></h2>
-      <div class="body">
-        <div id="verdict"></div>
-        <div class="tier-picker" id="picker">
-          <button data-tier="RED">RED<small>See today</small></button>
-          <button data-tier="AMBER">AMBER<small>Within 2 weeks</small></button>
-          <button data-tier="GREEN">GREEN<small>Routine / repeat</small></button>
+        <div class="actions">
+          <button class="go" id="run">Triage this referral</button>
+          <button class="quiet" id="clear">Clear</button>
         </div>
-        <div class="field" style="margin-bottom:12px">
-          <label>Rationale <span id="why-required" hidden style="color:var(--amber)">— required when you override</span></label>
-          <input id="rationale" placeholder="Why this tier?">
-        </div>
-        <button class="btn btn-primary" id="btn-sign">Sign off</button>
-        <div id="signed"></div>
-        <div class="ledger" id="ledger"></div>
+        <div id="input-fault"></div>
+      </div>
+    </section>
+
+    <!-- ---------- protocol ---------- -->
+    <section class="card">
+      <header>
+        <span class="eyebrow">The protocol</span>
+        <span class="attrib">deterministic · no model</span>
+      </header>
+      <div class="inner" id="protocol">
+        <p class="waiting">Load a referral, then triage it. The criteria are applied exactly as published — every one of them, fired or not, is listed with its source.</p>
+      </div>
+    </section>
+
+    <!-- ---------- assistant ---------- -->
+    <section class="card col-assistant">
+      <header>
+        <span class="eyebrow">The assistant</span>
+        <span class="attrib">claude-opus-4-8 · advisory</span>
+      </header>
+      <div class="inner" id="assistant">
+        <p class="waiting">The assistant reads the whole letter — including the judgements the criteria demand but a blood count cannot settle: a treatable cause, rapid growth, severe symptoms.</p>
       </div>
     </section>
   </div>
-</div>
 
-<p class="disclaimer">
-  Workshop prototype. Synthetic cases only — no patient data. Decision support, not a medical device:
-  no tier is acted on until a hematologist signs it.
-</p>
+  <!-- ---------- the rail ---------- -->
+  <section class="card rail-card" id="rail-card" hidden>
+    <header>
+      <span class="eyebrow">Your decision</span>
+      <span class="attrib">this is the output of record</span>
+    </header>
+    <div class="rail-wrap">
+      <div id="call"></div>
+
+      <div class="rail">
+        <div class="lanes">
+          <div class="band" id="band" hidden></div>
+          <div class="lane">
+            <div class="marker m-protocol" id="m-protocol" hidden>
+              <span class="glyph"></span><span class="who">PROTOCOL</span>
+            </div>
+          </div>
+          <div class="lane">
+            <div class="marker m-assistant" id="m-assistant" hidden>
+              <span class="glyph"></span><span class="who">ASSISTANT</span>
+            </div>
+          </div>
+        </div>
+        <div class="axis"></div>
+        <div class="stops" id="stops"></div>
+      </div>
+
+      <div class="signing">
+        <div>
+          <label class="eyebrow" for="why">Rationale <span class="req" id="why-req" hidden>— required, you are overriding</span></label>
+          <input id="why" placeholder="Why this category?">
+        </div>
+        <button class="go" id="sign" style="flex:none; padding:11px 26px">Sign off</button>
+      </div>
+      <div id="receipt"></div>
+      <div class="ledger" id="ledger"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Workshop prototype. Synthetic referrals only — no patient data. Decision support, not a medical device:
+  no category is acted on until a haematologist signs it.
+</footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const FIELDS = ["age","sex","hb","wbc","plt","anc"];
-const FLAGS = ["blastsOnSmear","fever","activeBleeding","lymphadenopathy","bSymptoms"];
-const TARGETS = { RED: "See today", AMBER: "Within 2 weeks", GREEN: "Routine — 6 weeks" };
+const esc = (s) => String(s).replace(/[&<>"]/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[m]));
 
-let state = { protocol: null, assistant: null, final: null, assistantAvailable: false };
+// Order is the whole point of the rail: most urgent first, and the index is
+// the quantity we measure disagreement in.
+const RAIL = [
+  { id: "EMERGENCY",    name: "EMERGENCY", when: "ED now" },
+  { id: "CATEGORY_1",   name: "CAT 1",     when: "30 days" },
+  { id: "CATEGORY_2",   name: "CAT 2",     when: "90 days" },
+  { id: "CATEGORY_3",   name: "CAT 3",     when: "365 days" },
+  { id: "NOT_REQUIRED", name: "NO REFER",  when: "primary care" },
+];
+const IDX = Object.fromEntries(RAIL.map((s, i) => [s.id, i]));
+const NAME = Object.fromEntries(RAIL.map((s) => [s.id, s.name]));
+const WHEN = Object.fromEntries(RAIL.map((s) => [s.id, s.when]));
 
+// Reference ranges as a NSW lab would print them.
+const ANALYTES = [
+  { k: "hb",  label: "Haemoglobin",  unit: "g/L",     ref: { M: [130, 180], F: [120, 160] } },
+  { k: "wbc", label: "White cells",  unit: "×10⁹/L",  ref: [4.0, 11.0] },
+  { k: "plt", label: "Platelets",    unit: "×10⁹/L",  ref: [150, 400] },
+  { k: "anc", label: "Neutrophils",  unit: "×10⁹/L",  ref: [2.0, 7.5] },
+  { k: "ldh", label: "LDH",          unit: "U/L",     ref: [120, 250] },
+];
+const DEMOG = [
+  { k: "age", label: "Age", unit: "years" },
+  { k: "sex", label: "Sex", unit: "M / F", text: true },
+  { k: "nodeSizeCm", label: "Largest node", unit: "cm" },
+];
+const FLAGS = [
+  { k: "blastsOnFilm",   label: "Blasts on film" },
+  { k: "feverOrSepsis",  label: "Fever / sepsis" },
+  { k: "activeBleeding", label: "Active bleeding" },
+  { k: "haemolysis",     label: "Haemolysis" },
+  { k: "lymphadenopathy",label: "Lymphadenopathy" },
+  { k: "bSymptoms",      label: "B symptoms" },
+  // These two exist only in the narrative. A blood count never carries them,
+  // which is exactly why the assistant earns its place.
+  { k: "rapidGrowth",    label: "Rapid growth", narrative: true },
+  { k: "severeSymptoms", label: "Severe symptoms", narrative: true },
+];
+
+const state = { protocol: null, assistant: null, mine: null, online: false };
+
+// ---------- build the report + flags ----------
+$("report").innerHTML = [...DEMOG, ...ANALYTES].map((a) => `
+  <tr>
+    <th><label for="f-${a.k}">${a.label}</label></th>
+    <td class="val"><input id="f-${a.k}" ${a.text ? 'maxlength="1"' : 'type="number" step="any"'} inputmode="${a.text ? "text" : "decimal"}"></td>
+    <td class="ref" id="ref-${a.k}">${a.unit}</td>
+    <td class="flag" id="flag-${a.k}"></td>
+  </tr>`).join("");
+
+$("flags").innerHTML = FLAGS.map((f) => `
+  <label class="${f.narrative ? "narrative" : ""}" for="f-${f.k}">
+    <input type="checkbox" id="f-${f.k}"> ${f.label}
+  </label>`).join("");
+
+$("stops").innerHTML = RAIL.map((s) => `
+  <button class="stop" data-tier="${s.id}" aria-pressed="false" style="--c: var(--t-${s.id})">
+    <span class="tick"></span>
+    <span class="name">${s.name}</span>
+    <span class="when">${s.when}</span>
+  </button>`).join("");
+
+// Live H/L flags against the reference range — the thing a haematologist's eye
+// goes to first on any report.
+function markRanges() {
+  const sex = $("f-sex").value.trim().toUpperCase();
+  for (const a of ANALYTES) {
+    const raw = $("f-" + a.k).value.trim();
+    const range = Array.isArray(a.ref) ? a.ref : a.ref[sex === "F" ? "F" : "M"];
+    $("ref-" + a.k).textContent = raw === "" ? a.unit : `${range[0]}–${range[1]} ${a.unit}`;
+    const flag = $("flag-" + a.k);
+    const v = Number(raw);
+    flag.className = "flag";
+    flag.textContent = "";
+    if (raw === "" || !Number.isFinite(v)) continue;
+    if (v < range[0]) { flag.textContent = "L"; flag.classList.add("lo"); }
+    else if (v > range[1]) { flag.textContent = "H"; flag.classList.add("hi"); }
+  }
+}
+for (const a of [...ANALYTES, { k: "sex" }]) $("f-" + a.k).addEventListener("input", markRanges);
+markRanges();
+
+// ---------- case i/o ----------
+const NUMS = [...DEMOG, ...ANALYTES].map((a) => a.k);
 function readCase() {
   const c = { note: $("note").value };
-  for (const f of FIELDS) {
-    const v = $("f-" + f).value.trim();
-    c[f] = v === "" ? null : (f === "sex" ? v.toUpperCase() : Number(v));
+  for (const k of NUMS) {
+    const v = $("f-" + k).value.trim();
+    c[k] = v === "" ? null : (k === "sex" ? v.toUpperCase() : Number(v));
   }
-  for (const f of FLAGS) c[f] = $("f-" + f).checked;
+  for (const f of FLAGS) c[f.k] = $("f-" + f.k).checked;
   return c;
 }
-
-function writeCase(c, { highlight = false } = {}) {
+function writeCase(c, { pulled = false } = {}) {
   if (c.note !== undefined) $("note").value = c.note;
-  for (const f of FIELDS) {
-    const el = $("f-" + f);
-    el.value = c[f] ?? "";
-    el.classList.toggle("filled", highlight && c[f] !== null && c[f] !== undefined);
+  for (const k of NUMS) {
+    const el = $("f-" + k);
+    el.value = c[k] ?? "";
+    el.classList.toggle("pulled", pulled && c[k] !== null && c[k] !== undefined);
   }
-  for (const f of FLAGS) $("f-" + f).checked = Boolean(c[f]);
+  for (const f of FLAGS) $("f-" + f.k).checked = Boolean(c[f.k]);
+  markRanges();
 }
 
-function tierChip(tier) {
-  return `<span class="tier-chip t-${tier}">${tier}
-    <span class="target">${TARGETS[tier]}</span></span>`;
-}
-
-function esc(s) {
-  return String(s).replace(/[&<>"]/g, (m) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[m]));
-}
-
-// ---- samples ----
 fetch("/api/cases").then((r) => r.json()).then((cases) => {
-  $("samples").innerHTML = cases
-    .map((c) => `<button data-id="${c.id}"><span class="k">${c.hint} ·</span> ${esc(c.label)}</button>`)
-    .join("");
-  $("samples").onclick = (e) => {
-    const btn = e.target.closest("button");
-    if (!btn) return;
-    writeCase(cases.find((c) => c.id === btn.dataset.id));
-    resetOutputs();
+  $("picks").innerHTML = cases.map((c) =>
+    `<button data-id="${c.id}"><span class="tag">${esc(c.hint)}</span><span>${esc(c.label)}</span></button>`
+  ).join("");
+  $("picks").onclick = (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    writeCase(cases.find((c) => c.id === b.dataset.id));
+    clearVerdicts();
   };
 });
 
 fetch("/api/config").then((r) => r.json()).then((cfg) => {
-  state.assistantAvailable = cfg.assistantAvailable;
-  $("status").innerHTML = cfg.assistantAvailable
-    ? 'assistant <b>online</b>'
-    : 'assistant <b class="off">offline</b> — protocol still runs';
-  $("btn-extract").disabled = !cfg.assistantAvailable;
+  state.online = cfg.assistantAvailable;
+  $("conn").innerHTML = cfg.assistantAvailable
+    ? "assistant <b>online</b>"
+    : 'assistant <b class="off">offline</b> — the protocol still runs';
+  $("pull").disabled = !cfg.assistantAvailable;
+  const p = cfg.provenance;
+  $("provenance").innerHTML =
+    `Categories from <b>${esc(p.framework.name)}</b> — Emergency red flags, then 30 / 90 / 365 days. ` +
+    `Thresholds from <b>${esc(p.thresholds.name)}</b> (<a href="${p.thresholds.url}" target="_blank" rel="noopener">published criteria</a>), ` +
+    `because NSW has not published haematology criteria as at July 2026. Swap the rule table for local criteria and nothing else changes.`;
 });
 
-function resetOutputs() {
-  state.protocol = state.assistant = state.final = null;
-  $("protocol").innerHTML = '<p class="muted">Load a case and press <em>Triage this case</em>.</p>';
-  $("assistant").innerHTML = '<p class="muted">The assistant reads the whole letter, not just the numbers.</p>';
-  $("adjudicate").hidden = true;
-  $("signed").innerHTML = "";
-  $("rationale").value = "";
-  $("case-err").innerHTML = "";
+function clearVerdicts() {
+  state.protocol = state.assistant = state.mine = null;
+  $("protocol").innerHTML = '<p class="waiting">Load a referral, then triage it. The criteria are applied exactly as published — every one of them, fired or not, is listed with its source.</p>';
+  $("assistant").innerHTML = '<p class="waiting">The assistant reads the whole letter — including the judgements the criteria demand but a blood count cannot settle: a treatable cause, rapid growth, severe symptoms.</p>';
+  $("rail-card").hidden = true;
+  $("receipt").innerHTML = "";
+  $("why").value = "";
+  $("input-fault").innerHTML = "";
 }
 
-$("btn-clear").onclick = () => {
-  writeCase({ note: "", age: null, sex: null, hb: null, wbc: null, plt: null, anc: null });
-  resetOutputs();
+$("clear").onclick = () => {
+  writeCase({ note: "", ...Object.fromEntries(NUMS.map((k) => [k, null])) });
+  clearVerdicts();
 };
 
-// ---- extract ----
-$("btn-extract").onclick = async () => {
+// ---------- read the letter ----------
+$("pull").onclick = async () => {
   const note = $("note").value.trim();
   if (!note) return;
-  const btn = $("btn-extract");
-  btn.disabled = true;
-  btn.textContent = "Reading letter…";
-  $("case-err").innerHTML = "";
+  const b = $("pull");
+  b.disabled = true; b.textContent = "Reading…";
+  $("input-fault").innerHTML = "";
   try {
     const res = await fetch("/api/extract", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ note }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
-    writeCase({ ...data, note }, { highlight: true });
+    writeCase({ ...data, note }, { pulled: true });
     if (data.missing?.length) {
-      $("case-err").innerHTML =
-        `<div class="err">The letter does not state: ${data.missing.map(esc).join(", ")}. ` +
-        `Fill these in before triaging.</div>`;
+      $("input-fault").innerHTML =
+        `<div class="fault">The letter doesn't state: ${data.missing.map(esc).join(", ")}. Fill these in before triaging.</div>`;
     }
   } catch (err) {
-    $("case-err").innerHTML = `<div class="err">${esc(err.message)}</div>`;
+    $("input-fault").innerHTML = `<div class="fault">${esc(err.message)}</div>`;
   } finally {
-    btn.disabled = false;
-    btn.textContent = "Extract labs from letter";
+    b.disabled = false; b.textContent = "Read the letter";
   }
 };
 
-// ---- triage ----
-$("btn-run").onclick = async () => {
-  const caseData = readCase();
-  $("case-err").innerHTML = "";
-  resetOutputsKeepCase();
+// ---------- triage ----------
+$("run").onclick = async () => {
+  const kase = readCase();
+  $("input-fault").innerHTML = "";
+  state.protocol = state.assistant = state.mine = null;
+  $("receipt").innerHTML = ""; $("why").value = "";
 
-  // Protocol first, and on its own — it must render even if the assistant fails.
-  const protocol = await (
-    await fetch("/api/protocol", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(caseData),
-    })
-  ).json();
+  // Protocol first, alone. It renders even if the assistant never answers.
+  const protocol = await (await fetch("/api/protocol", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(kase),
+  })).json();
   state.protocol = protocol;
-  renderProtocol(protocol);
-  state.final = protocol.tier;
-  renderAdjudication();
+  state.mine = protocol.tier;
+  drawProtocol(protocol);
+  drawRail();
 
-  if (!state.assistantAvailable) {
-    $("assistant").innerHTML =
-      '<p class="muted">Assistant offline (no API key). The protocol tier stands on its own.</p>';
+  if (!state.online) {
+    $("assistant").innerHTML = '<p class="waiting">Assistant offline — no API key. The protocol stands on its own.</p>';
     return;
   }
-
-  $("assistant").innerHTML = '<p class="muted"><span class="spin">◐</span> Reading the case…</p>';
+  $("assistant").innerHTML = '<p class="waiting">Reading the referral…</p>';
   try {
     const res = await fetch("/api/opinion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(caseData),
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(kase),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);
     state.assistant = data;
-    renderAssistant(data);
-    renderAdjudication();
+    drawAssistant(data);
+    drawRail();
   } catch (err) {
-    $("assistant").innerHTML = `<div class="err">${esc(err.message)}</div>`;
+    $("assistant").innerHTML = `<div class="fault">${esc(err.message)}</div>`;
   }
 };
 
-function resetOutputsKeepCase() {
-  state.protocol = state.assistant = state.final = null;
-  $("adjudicate").hidden = true;
-  $("signed").innerHTML = "";
-  $("rationale").value = "";
+function verdict(tier, when, expedite) {
+  return `<span class="verdict" style="background: var(--t-${tier}-w); color: var(--t-${tier})">
+      ${NAME[tier]} <span class="when">${esc(when || WHEN[tier])}</span></span>` +
+    (expedite ? `<span class="expedite">EXPEDITE · 2 WEEKS</span>` : "");
 }
 
-function renderProtocol(p) {
-  const rules = p.rules
-    .map(
-      (r) => `<li class="${r.fired ? "fired f-" + r.tier : ""}">
-        <span class="mark">${r.fired ? "▸" : "·"}</span>
-        <span><span class="crit">${esc(r.criterion)}</span>
-        ${r.fired ? `<span class="rule-detail">${esc(r.detail)} → ${r.tier}</span>` : ""}</span>
-      </li>`,
-    )
-    .join("");
+function drawProtocol(p) {
+  // Met criteria first — they are the answer. The rest stay on the page, because
+  // showing the whole table (not just the hits) is what makes it auditable.
+  const row = (r) => `
+    <li class="${r.fired ? "hit" : ""}" style="--hit: var(--t-${r.tier})">
+      <span class="bullet">${r.fired ? "■" : "□"}</span>
+      <span>
+        <span class="what">${esc(r.criterion)}</span>
+        ${r.fired ? `
+          <span class="met">${esc(r.detail)} → ${NAME[r.tier]}</span>
+          <span class="cite">${esc(r.source)}${r.judgement ? " · <em>needs your judgement</em>" : ""}</span>` : ""}
+      </span>
+    </li>`;
+
+  const met = p.rules.filter((r) => r.fired);
+  const unmet = p.rules.filter((r) => !r.fired);
+
   $("protocol").innerHTML = `
-    ${tierChip(p.tier)}
-    <p class="reasoning" style="margin-top:12px">
-      ${p.firedCount === 0
-        ? "No protocol criterion fired on these values."
-        : `${p.firedCount} criteri${p.firedCount === 1 ? "on" : "a"} fired. Highest tier wins.`}
-    </p>
-    <ul class="rules">${rules}</ul>`;
+    ${verdict(p.tier, p.target, p.expedite)}
+    ${p.expedite ? `<div class="expedite-why"><b>Expedited</b> — ${p.expediteReasons.map(esc).join("; ").toLowerCase()}.</div>` : ""}
+    <p class="tally">${met.length === 0
+      ? "Nothing fired. Under the state-wide criteria this referral is declined, not queued."
+      : `${met.length} criteri${met.length === 1 ? "on" : "a"} met. The highest category carries.`}</p>
+    ${met.length ? `<ul class="criteria">${met.map(row).join("")}</ul>` : ""}
+    <div class="not-met">
+      <span class="eyebrow">Not met — ${unmet.length} criteri${unmet.length === 1 ? "on" : "a"}</span>
+      <ul class="criteria">${unmet.map(row).join("")}</ul>
+    </div>`;
 }
 
-function renderAssistant(a) {
+function drawAssistant(a) {
   $("assistant").innerHTML = `
-    ${tierChip(a.tier)}
-    <p class="headline">${esc(a.headline)}</p>
-    <p class="reasoning">${esc(a.reasoning)}</p>
-    ${list("Suggested workup", a.suggestedWorkup)}
-    ${list("Concerns", a.concerns)}`;
+    ${verdict(a.tier, null, a.expedite && a.tier === "CATEGORY_1")}
+    <p class="lede">${esc(a.headline)}</p>
+    <p class="argument">${esc(a.reasoning)}</p>
+    ${aside("Suggested workup", a.suggestedWorkup)}
+    ${aside("Concerns", a.concerns)}`;
 }
-
-function list(title, items) {
+function aside(title, items) {
   if (!items?.length) return "";
-  return `<ul class="sublist"><h3>${title}</h3>
-    ${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
+  return `<div class="aside"><h3 class="eyebrow">${title}</h3>
+    <ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul></div>`;
 }
 
-function renderAdjudication() {
-  $("adjudicate").hidden = false;
+// ---------- the rail ----------
+const at = (i) => `${(i + 0.5) * (100 / RAIL.length)}%`;
+
+function drawRail() {
+  $("rail-card").hidden = false;
   const p = state.protocol?.tier;
   const a = state.assistant?.tier;
 
-  if (a && p && a !== p) {
-    $("verdict").innerHTML = `<div class="disagree">
-      <b>They disagree.</b>
-      <span>The protocol says <b>${p}</b> on the numbers; the assistant says <b>${a}</b>
-      after reading the letter. You decide which is right.</span></div>`;
-  } else if (a && p) {
-    $("verdict").innerHTML = `<div class="agree">
-      Protocol and assistant both say <b>${p}</b>. You can still override.</div>`;
+  place("m-protocol", p);
+  place("m-assistant", a);
+
+  const band = $("band");
+  if (p && a && p !== a) {
+    const lo = Math.min(IDX[p], IDX[a]);
+    const hi = Math.max(IDX[p], IDX[a]);
+    const steps = hi - lo;
+    band.hidden = false;
+    band.style.left = at(lo);
+    band.style.width = `calc(${at(hi)} - ${at(lo)})`;
+    $("call").innerHTML = `<div class="split-call split">
+      <span class="gap">${steps} APART</span>
+      <span>The protocol says <strong>${NAME[p]}</strong> on the criteria as written. The assistant says
+      <strong>${NAME[a]}</strong> after reading the letter. Yours is the one that counts — place it on the line.</span>
+    </div>`;
   } else {
-    $("verdict").innerHTML = `<div class="agree">
-      Protocol says <b>${p}</b>. No assistant opinion on this case.</div>`;
+    band.hidden = true;
+    $("call").innerHTML = a
+      ? `<div class="split-call aligned">Protocol and assistant agree on <b>${NAME[p]}</b>. You can still put it anywhere on the line.</div>`
+      : `<div class="split-call aligned">The protocol says <b>${NAME[p]}</b>. No assistant opinion on this referral.</div>`;
   }
-  paintPicker();
+  paintStops();
 }
 
-function paintPicker() {
-  for (const btn of $("picker").children) {
-    btn.className = btn.dataset.tier === state.final ? "sel-" + state.final : "";
+function place(id, tier) {
+  const el = $(id);
+  el.hidden = !tier;
+  if (tier) {
+    el.style.left = at(IDX[tier]);
+    el.style.setProperty("--c", `var(--t-${tier})`);
   }
-  const overriding =
-    (state.protocol && state.final !== state.protocol.tier) ||
-    (state.assistant && state.final !== state.assistant.tier);
-  $("why-required").hidden = !overriding;
 }
 
-$("picker").onclick = (e) => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-  state.final = btn.dataset.tier;
-  paintPicker();
+function overriding() {
+  return (state.protocol && state.mine !== state.protocol.tier) ||
+         (state.assistant && state.mine !== state.assistant.tier);
+}
+
+function paintStops() {
+  for (const b of $("stops").children) {
+    b.setAttribute("aria-pressed", String(b.dataset.tier === state.mine));
+  }
+  $("why-req").hidden = !overriding();
+}
+
+$("stops").onclick = (e) => {
+  const b = e.target.closest(".stop");
+  if (!b) return;
+  state.mine = b.dataset.tier;
+  paintStops();
 };
 
-$("btn-sign").onclick = async () => {
-  if (!state.final) return;
-  const overriding =
-    (state.protocol && state.final !== state.protocol.tier) ||
-    (state.assistant && state.final !== state.assistant.tier);
-  const rationale = $("rationale").value.trim();
-  if (overriding && !rationale) {
-    $("rationale").focus();
-    $("signed").innerHTML =
-      '<div class="err">You are overriding an opinion — give a one-line reason first.</div>';
+$("sign").onclick = async () => {
+  if (!state.mine) return;
+  const why = $("why").value.trim();
+  if (overriding() && !why) {
+    $("why").focus();
+    $("receipt").innerHTML = '<div class="fault">You are overriding an opinion. Give a one-line reason first.</div>';
     return;
   }
-
   const res = await fetch("/api/signoff", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       protocolTier: state.protocol?.tier ?? null,
       assistantTier: state.assistant?.tier ?? null,
-      finalTier: state.final,
-      rationale,
+      finalTier: state.mine,
+      rationale: why,
       caseData: readCase(),
     }),
   });
   const data = await res.json();
-  if (!res.ok) {
-    $("signed").innerHTML = `<div class="err">${esc(data.error)}</div>`;
-    return;
-  }
-  $("signed").innerHTML = `<div class="signed">Signed off as <b>${state.final}</b> — ${TARGETS[state.final]}. Recorded.</div>`;
+  if (!res.ok) return ($("receipt").innerHTML = `<div class="fault">${esc(data.error)}</div>`);
+  $("receipt").innerHTML =
+    `<div class="receipt">Signed off as <b>${NAME[state.mine]}</b> — ${WHEN[state.mine]}. Recorded.</div>`;
   loadLedger();
 };
 
 async function loadLedger() {
   const d = await (await fetch("/api/decisions")).json();
-  if (!d.count) return ($("ledger").innerHTML = "");
-  $("ledger").innerHTML =
-    `<b>${d.count}</b> case${d.count === 1 ? "" : "s"} signed off · ` +
-    `protocol and assistant disagreed on <b>${d.disagreements}</b> · ` +
-    `hematologist overrode the assistant <b>${d.overrodeAssistant}</b> time${d.overrodeAssistant === 1 ? "" : "s"}.`;
+  $("ledger").innerHTML = !d.count ? "" :
+    `<b>${d.count}</b> referral${d.count === 1 ? "" : "s"} signed · ` +
+    `protocol and assistant split on <b>${d.disagreements}</b> · ` +
+    `you overrode the assistant <b>${d.overrodeAssistant}</b> time${d.overrodeAssistant === 1 ? "" : "s"}.`;
 }
 loadLedger();
 </script>

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 
-import { runProtocol } from "./rules.js";
+import { runProtocol, PROVENANCE } from "./rules.js";
 import { SAMPLE_CASES } from "./cases.js";
 import { extractCase, secondOpinion, isConfigured } from "./assistant.js";
 
@@ -16,7 +16,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.static(join(__dirname, "../public")));
 
 app.get("/api/config", (req, res) => {
-  res.json({ assistantAvailable: isConfigured() });
+  res.json({ assistantAvailable: isConfigured(), provenance: PROVENANCE });
 });
 
 app.get("/api/cases", (req, res) => res.json(SAMPLE_CASES));
@@ -52,7 +52,7 @@ app.post("/api/opinion", async (req, res) => {
   try {
     const caseData = req.body ?? {};
     const protocol = runProtocol(caseData);
-    res.json(await secondOpinion({ caseData, protocolTier: protocol.tier }));
+    res.json(await secondOpinion({ caseData, protocol }));
   } catch (err) {
     console.error("opinion failed:", err);
     res.status(502).json({ error: `Assistant unavailable: ${err.message}` });
