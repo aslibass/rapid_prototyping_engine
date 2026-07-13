@@ -1,0 +1,19 @@
+{
+  "name": "hemetriage",
+  "version": "0.1.0",
+  "description": "Hematology case triage - protocol rules plus an AI second opinion, with the hematologist signing off",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch server/index.js",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,5 +1,25 @@
 {
   "version": "1.0",
   "lastUpdated": "2026-07-13T00:00:00Z",
-  "prototypes": []
+  "prototypes": [
+    {
+      "id": "proto_20260713_HemeTriage",
+      "name": "HemeTriage",
+      "created": "2026-07-13T00:00:00Z",
+      "status": "local",
+      "summary": "Hematology referral triage: the department's deterministic protocol and Claude as an assistant triage expert give independent opinions; the hematologist adjudicates and signs off.",
+      "tech_stack": {
+        "backend": "node/express",
+        "frontend": "vanilla (no build step)",
+        "model": "claude-opus-4-8",
+        "database": "none (append-only jsonl)"
+      },
+      "deployed_url": null,
+      "deploy_note": "Deliberately not deployed - a public URL would expose a personal ANTHROPIC_API_KEY on a throwaway demo. Runs on localhost:5050.",
+      "run": "cd prototypes/HemeTriage && npm install && cp .env.example .env && npm start",
+      "interview": "./prototypes/HemeTriage/interview.json",
+      "design": "./prototypes/HemeTriage/design/decisions.md",
+      "code": "./prototypes/HemeTriage/server"
+    }
+  ]
 }

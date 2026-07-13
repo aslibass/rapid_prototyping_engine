@@ -1,0 +1,33 @@
+{
+  "id": "interview_20260713_HemeTriage",
+  "timestamp": "2026-07-13T00:00:00Z",
+  "prototype": "HemeTriage",
+  "phase1_problem_users": {
+    "problem": "A hematologist (or fellow) triaging incoming referrals needs to assign an urgency tier and decide the next workup. Today this is done by reading the referral letter and the CBC by eye, which is slow and varies between reviewers.",
+    "users": "Hematologists and hematology fellows reviewing referral queues"
+  },
+  "phase2_core_feature": {
+    "feature": "Show the clinician two independent opinions side by side - the department's standard rule protocol run deterministically (with the exact criteria that fired), and Claude acting as an assistant hematology triage expert reading the whole case - then let the hematologist set the final tier and sign off. Disagreement between the two is highlighted."
+  },
+  "phase3_tech_stack": {
+    "answer": "Backend: Node + Express. Frontend: vanilla JS single page (no build step). LLM: Anthropic claude-opus-4-8 via @anthropic-ai/sdk. Storage: append-only decisions.json. No database."
+  },
+  "phase4_timeline": {
+    "answer": "Workshop prototype - local only, no deployment"
+  },
+  "phase5_success_metric": {
+    "metric": "A hematologist can load a case, see the protocol tier and Claude's tier, see when they disagree and why, override either one, and have that final decision recorded with a rationale."
+  },
+  "phase6_data_source": {
+    "source": "3 synthetic cases, one per tier: RED (?acute leukemia), AMBER (isolated thrombocytopenia), GREEN (mild iron-deficiency anemia). No PHI."
+  },
+  "phase7_constraints": {
+    "constraints": "Runs locally only - not deployed to Railway, because a public URL would expose the personal ANTHROPIC_API_KEY. The rules engine must never depend on the API: if the key is missing or the call fails, the protocol tier and sign-off still work. Decision support only, not a medical device - the hematologist has the final say by design."
+  },
+  "key_decisions": [
+    "Human adjudicator is the product, not the triage calculator. The output of record is the hematologist's tier, not the model's.",
+    "Rules are transparent and shown firing by name - that is the credibility anchor with clinicians ('that is your protocol, not our black box').",
+    "Claude reads the narrative the rules cannot see, so disagreement is the interesting signal, not a bug.",
+    "Every sign-off is logged with rules tier, Claude tier, final tier, and rationale - giving an AI-vs-human agreement trail."
+  ]
+}

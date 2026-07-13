@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HemeTriage — hematology case triage</title>
+<style>
+  :root {
+    --ink: #14181d;
+    --ink-2: #55606c;
+    --ink-3: #8b95a1;
+    --line: #dfe4ea;
+    --panel: #ffffff;
+    --bg: #f2f4f7;
+    --red: #c02626;
+    --red-bg: #fdeceb;
+    --amber: #a76100;
+    --amber-bg: #fdf2e0;
+    --green: #1c7048;
+    --green-bg: #e7f4ed;
+    --accent: #1a4fa0;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font: 15px/1.55 "Iowan Old Style", "Charter", Georgia, serif;
+    background: var(--bg); color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .mono, input, select, textarea, button, .tier-chip, .rule-detail {
+    font-family: "SF Mono", "JetBrains Mono", "Cascadia Mono", ui-monospace, Menlo, monospace;
+  }
+
+  header {
+    background: var(--ink); color: #fff;
+    padding: 14px 24px; display: flex; align-items: baseline; gap: 16px;
+  }
+  header h1 { font-size: 19px; letter-spacing: .01em; font-weight: 600; }
+  header .sub { color: #9aa6b4; font-size: 13px; }
+  header .spacer { flex: 1; }
+  header .status { font-size: 12px; color: #9aa6b4; }
+  header .status b { color: #7fd6a5; font-weight: 500; }
+  header .status b.off { color: #e8a87c; }
+
+  .wrap {
+    max-width: 1360px; margin: 0 auto; padding: 20px;
+    display: grid; grid-template-columns: minmax(340px, 420px) 1fr; gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  }
+  .panel > h2 {
+    font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel > h2 .note { text-transform: none; letter-spacing: 0; margin-left: auto; font-weight: 400; }
+  .body { padding: 16px; }
+
+  /* ---- case input ---- */
+  .samples { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .samples button {
+    text-align: left; padding: 9px 11px; font-size: 12.5px;
+    background: #fafbfc; border: 1px solid var(--line); border-radius: 4px;
+    cursor: pointer; color: var(--ink);
+  }
+  .samples button:hover { border-color: var(--accent); background: #f4f7fc; }
+  .samples button .k { color: var(--ink-3); }
+
+  textarea {
+    width: 100%; min-height: 190px; padding: 10px; resize: vertical;
+    border: 1px solid var(--line); border-radius: 4px; font-size: 12.5px; line-height: 1.5;
+    color: var(--ink); background: #fdfdfe;
+  }
+  textarea:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin: 14px 0; }
+  .field label {
+    display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 3px; font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+  .field input {
+    width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px;
+    font-size: 13px; background: #fdfdfe;
+  }
+  .field input.filled { background: #fffbe8; border-color: #e8d48a; }
+  .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; margin-bottom: 14px; }
+  .checks label {
+    font-size: 12.5px; display: flex; gap: 7px; align-items: center; cursor: pointer;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .btn {
+    padding: 9px 14px; border-radius: 4px; border: 1px solid transparent;
+    font-size: 12.5px; font-weight: 600; cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #143d7c; }
+  .btn-ghost { background: #fff; border-color: var(--line); color: var(--ink); }
+  .btn-ghost:hover { border-color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .row { display: flex; gap: 8px; }
+
+  /* ---- opinions ---- */
+  .opinions { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 1180px) { .opinions { grid-template-columns: 1fr; } }
+
+  .tier-chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 4px; font-size: 15px; font-weight: 700;
+    letter-spacing: .08em;
+  }
+  .t-RED { background: var(--red-bg); color: var(--red); }
+  .t-AMBER { background: var(--amber-bg); color: var(--amber); }
+  .t-GREEN { background: var(--green-bg); color: var(--green); }
+  .tier-chip .target {
+    font-size: 11px; font-weight: 500; letter-spacing: 0; opacity: .85;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+
+  .rules { list-style: none; padding: 0; margin: 14px 0 0; }
+  .rules li {
+    display: flex; gap: 9px; padding: 7px 0; border-top: 1px solid #f0f2f5;
+    font-size: 12.5px; color: var(--ink-3);
+  }
+  .rules li.fired { color: var(--ink); }
+  .rules .mark {
+    font-family: ui-monospace, monospace; width: 14px; flex: none; text-align: center;
+    color: var(--ink-3);
+  }
+  .rules li.fired .mark { color: var(--red); font-weight: 700; }
+  .rules li.fired.f-AMBER .mark { color: var(--amber); }
+  .rules li.fired.f-GREEN .mark { color: var(--green); }
+  .rule-detail { display: block; font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+  .rules li.fired .crit { font-weight: 600; }
+
+  .headline { font-size: 15.5px; line-height: 1.45; margin: 14px 0 8px; }
+  .reasoning { font-size: 14px; color: var(--ink-2); line-height: 1.6; }
+  .sublist { margin: 12px 0 0; padding: 0; list-style: none; }
+  .sublist h3 {
+    font: 600 10.5px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-3); margin: 14px 0 6px;
+  }
+  .sublist li {
+    font-size: 13px; color: var(--ink-2); padding: 3px 0 3px 14px; position: relative;
+  }
+  .sublist li::before {
+    content: "→"; position: absolute; left: 0; color: var(--ink-3); font-size: 11px;
+  }
+
+  .muted { color: var(--ink-3); font-size: 13px; font-style: italic; }
+  .err {
+    background: var(--red-bg); border: 1px solid #f0c4c1; color: var(--red);
+    padding: 10px 12px; border-radius: 4px; font-size: 12.5px; margin-top: 12px;
+  }
+
+  /* ---- adjudication ---- */
+  .adjudicate { margin-top: 20px; }
+  .disagree {
+    display: flex; gap: 10px; align-items: baseline;
+    background: #fff8e6; border: 1px solid #e8cf8a; border-left: 4px solid var(--amber);
+    padding: 12px 14px; border-radius: 4px; margin-bottom: 16px; font-size: 13.5px;
+  }
+  .disagree b { color: var(--amber); }
+  .agree {
+    background: #f4f7fc; border: 1px solid #cfdcf0; border-left: 4px solid var(--accent);
+    padding: 12px 14px; border-radius: 4px; margin-bottom: 16px; font-size: 13.5px;
+    color: var(--ink-2);
+  }
+  .tier-picker { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tier-picker button {
+    flex: 1; padding: 12px; border-radius: 4px; border: 2px solid var(--line);
+    background: #fff; font-weight: 700; letter-spacing: .08em; font-size: 13px;
+    cursor: pointer; color: var(--ink-3);
+  }
+  .tier-picker button small {
+    display: block; font-weight: 400; letter-spacing: 0; font-size: 10.5px;
+    margin-top: 3px; font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+  .tier-picker button.sel-RED { border-color: var(--red); background: var(--red-bg); color: var(--red); }
+  .tier-picker button.sel-AMBER { border-color: var(--amber); background: var(--amber-bg); color: var(--amber); }
+  .tier-picker button.sel-GREEN { border-color: var(--green); background: var(--green-bg); color: var(--green); }
+
+  .signed {
+    background: var(--green-bg); border: 1px solid #b9dfca; color: var(--green);
+    padding: 12px 14px; border-radius: 4px; font-size: 13.5px;
+  }
+  .ledger { font-size: 12.5px; color: var(--ink-2); margin-top: 10px; }
+  .ledger b { color: var(--ink); }
+
+  .disclaimer {
+    max-width: 1360px; margin: 0 auto; padding: 4px 20px 28px;
+    font-size: 11.5px; color: var(--ink-3); font-style: italic;
+  }
+  .spin { display: inline-block; animation: sp 1s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>HemeTriage</h1>
+  <span class="sub">Referral triage &middot; protocol + assistant &middot; hematologist signs off</span>
+  <span class="spacer"></span>
+  <span class="status" id="status"></span>
+</header>
+
+<div class="wrap">
+
+  <!-- ============ CASE ============ -->
+  <section class="panel">
+    <h2>The case</h2>
+    <div class="body">
+      <div class="samples" id="samples"></div>
+
+      <textarea id="note" placeholder="Paste the referral letter here…"></textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-ghost" id="btn-extract" style="flex:1">Extract labs from letter</button>
+      </div>
+
+      <div class="grid">
+        <div class="field"><label>Age</label><input id="f-age" type="number"></div>
+        <div class="field"><label>Sex</label><input id="f-sex" maxlength="1" placeholder="M / F"></div>
+        <div class="field"><label>Hb (g/L)</label><input id="f-hb" type="number"></div>
+        <div class="field"><label>WBC (×10⁹/L)</label><input id="f-wbc" type="number" step="0.1"></div>
+        <div class="field"><label>Platelets (×10⁹/L)</label><input id="f-plt" type="number"></div>
+        <div class="field"><label>Neutrophils (×10⁹/L)</label><input id="f-anc" type="number" step="0.1"></div>
+      </div>
+
+      <div class="checks">
+        <label><input type="checkbox" id="f-blastsOnSmear"> Blasts on smear</label>
+        <label><input type="checkbox" id="f-fever"> Fever</label>
+        <label><input type="checkbox" id="f-activeBleeding"> Active bleeding</label>
+        <label><input type="checkbox" id="f-lymphadenopathy"> Lymphadenopathy</label>
+        <label><input type="checkbox" id="f-bSymptoms"> B symptoms</label>
+      </div>
+
+      <div class="row">
+        <button class="btn btn-primary" id="btn-run" style="flex:1">Triage this case</button>
+        <button class="btn btn-ghost" id="btn-clear">Clear</button>
+      </div>
+      <div id="case-err"></div>
+    </div>
+  </section>
+
+  <!-- ============ OPINIONS + ADJUDICATION ============ -->
+  <div>
+    <div class="opinions">
+
+      <section class="panel">
+        <h2>Protocol <span class="note">deterministic · no AI</span></h2>
+        <div class="body" id="protocol">
+          <p class="muted">Load a case and press <em>Triage this case</em>.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Assistant <span class="note">claude-opus-4-8 · advisory</span></h2>
+        <div class="body" id="assistant">
+          <p class="muted">The assistant reads the whole letter, not just the numbers.</p>
+        </div>
+      </section>
+
+    </div>
+
+    <section class="panel adjudicate" id="adjudicate" hidden>
+      <h2>Your decision <span class="note">this is the output of record</span></h2>
+      <div class="body">
+        <div id="verdict"></div>
+        <div class="tier-picker" id="picker">
+          <button data-tier="RED">RED<small>See today</small></button>
+          <button data-tier="AMBER">AMBER<small>Within 2 weeks</small></button>
+          <button data-tier="GREEN">GREEN<small>Routine / repeat</small></button>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Rationale <span id="why-required" hidden style="color:var(--amber)">— required when you override</span></label>
+          <input id="rationale" placeholder="Why this tier?">
+        </div>
+        <button class="btn btn-primary" id="btn-sign">Sign off</button>
+        <div id="signed"></div>
+        <div class="ledger" id="ledger"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<p class="disclaimer">
+  Workshop prototype. Synthetic cases only — no patient data. Decision support, not a medical device:
+  no tier is acted on until a hematologist signs it.
+</p>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const FIELDS = ["age","sex","hb","wbc","plt","anc"];
+const FLAGS = ["blastsOnSmear","fever","activeBleeding","lymphadenopathy","bSymptoms"];
+const TARGETS = { RED: "See today", AMBER: "Within 2 weeks", GREEN: "Routine — 6 weeks" };
+
+let state = { protocol: null, assistant: null, final: null, assistantAvailable: false };
+
+function readCase() {
+  const c = { note: $("note").value };
+  for (const f of FIELDS) {
+    const v = $("f-" + f).value.trim();
+    c[f] = v === "" ? null : (f === "sex" ? v.toUpperCase() : Number(v));
+  }
+  for (const f of FLAGS) c[f] = $("f-" + f).checked;
+  return c;
+}
+
+function writeCase(c, { highlight = false } = {}) {
+  if (c.note !== undefined) $("note").value = c.note;
+  for (const f of FIELDS) {
+    const el = $("f-" + f);
+    el.value = c[f] ?? "";
+    el.classList.toggle("filled", highlight && c[f] !== null && c[f] !== undefined);
+  }
+  for (const f of FLAGS) $("f-" + f).checked = Boolean(c[f]);
+}
+
+function tierChip(tier) {
+  return `<span class="tier-chip t-${tier}">${tier}
+    <span class="target">${TARGETS[tier]}</span></span>`;
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (m) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[m]));
+}
+
+// ---- samples ----
+fetch("/api/cases").then((r) => r.json()).then((cases) => {
+  $("samples").innerHTML = cases
+    .map((c) => `<button data-id="${c.id}"><span class="k">${c.hint} ·</span> ${esc(c.label)}</button>`)
+    .join("");
+  $("samples").onclick = (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+    writeCase(cases.find((c) => c.id === btn.dataset.id));
+    resetOutputs();
+  };
+});
+
+fetch("/api/config").then((r) => r.json()).then((cfg) => {
+  state.assistantAvailable = cfg.assistantAvailable;
+  $("status").innerHTML = cfg.assistantAvailable
+    ? 'assistant <b>online</b>'
+    : 'assistant <b class="off">offline</b> — protocol still runs';
+  $("btn-extract").disabled = !cfg.assistantAvailable;
+});
+
+function resetOutputs() {
+  state.protocol = state.assistant = state.final = null;
+  $("protocol").innerHTML = '<p class="muted">Load a case and press <em>Triage this case</em>.</p>';
+  $("assistant").innerHTML = '<p class="muted">The assistant reads the whole letter, not just the numbers.</p>';
+  $("adjudicate").hidden = true;
+  $("signed").innerHTML = "";
+  $("rationale").value = "";
+  $("case-err").innerHTML = "";
+}
+
+$("btn-clear").onclick = () => {
+  writeCase({ note: "", age: null, sex: null, hb: null, wbc: null, plt: null, anc: null });
+  resetOutputs();
+};
+
+// ---- extract ----
+$("btn-extract").onclick = async () => {
+  const note = $("note").value.trim();
+  if (!note) return;
+  const btn = $("btn-extract");
+  btn.disabled = true;
+  btn.textContent = "Reading letter…";
+  $("case-err").innerHTML = "";
+  try {
+    const res = await fetch("/api/extract", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    writeCase({ ...data, note }, { highlight: true });
+    if (data.missing?.length) {
+      $("case-err").innerHTML =
+        `<div class="err">The letter does not state: ${data.missing.map(esc).join(", ")}. ` +
+        `Fill these in before triaging.</div>`;
+    }
+  } catch (err) {
+    $("case-err").innerHTML = `<div class="err">${esc(err.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Extract labs from letter";
+  }
+};
+
+// ---- triage ----
+$("btn-run").onclick = async () => {
+  const caseData = readCase();
+  $("case-err").innerHTML = "";
+  resetOutputsKeepCase();
+
+  // Protocol first, and on its own — it must render even if the assistant fails.
+  const protocol = await (
+    await fetch("/api/protocol", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(caseData),
+    })
+  ).json();
+  state.protocol = protocol;
+  renderProtocol(protocol);
+  state.final = protocol.tier;
+  renderAdjudication();
+
+  if (!state.assistantAvailable) {
+    $("assistant").innerHTML =
+      '<p class="muted">Assistant offline (no API key). The protocol tier stands on its own.</p>';
+    return;
+  }
+
+  $("assistant").innerHTML = '<p class="muted"><span class="spin">◐</span> Reading the case…</p>';
+  try {
+    const res = await fetch("/api/opinion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(caseData),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    state.assistant = data;
+    renderAssistant(data);
+    renderAdjudication();
+  } catch (err) {
+    $("assistant").innerHTML = `<div class="err">${esc(err.message)}</div>`;
+  }
+};
+
+function resetOutputsKeepCase() {
+  state.protocol = state.assistant = state.final = null;
+  $("adjudicate").hidden = true;
+  $("signed").innerHTML = "";
+  $("rationale").value = "";
+}
+
+function renderProtocol(p) {
+  const rules = p.rules
+    .map(
+      (r) => `<li class="${r.fired ? "fired f-" + r.tier : ""}">
+        <span class="mark">${r.fired ? "▸" : "·"}</span>
+        <span><span class="crit">${esc(r.criterion)}</span>
+        ${r.fired ? `<span class="rule-detail">${esc(r.detail)} → ${r.tier}</span>` : ""}</span>
+      </li>`,
+    )
+    .join("");
+  $("protocol").innerHTML = `
+    ${tierChip(p.tier)}
+    <p class="reasoning" style="margin-top:12px">
+      ${p.firedCount === 0
+        ? "No protocol criterion fired on these values."
+        : `${p.firedCount} criteri${p.firedCount === 1 ? "on" : "a"} fired. Highest tier wins.`}
+    </p>
+    <ul class="rules">${rules}</ul>`;
+}
+
+function renderAssistant(a) {
+  $("assistant").innerHTML = `
+    ${tierChip(a.tier)}
+    <p class="headline">${esc(a.headline)}</p>
+    <p class="reasoning">${esc(a.reasoning)}</p>
+    ${list("Suggested workup", a.suggestedWorkup)}
+    ${list("Concerns", a.concerns)}`;
+}
+
+function list(title, items) {
+  if (!items?.length) return "";
+  return `<ul class="sublist"><h3>${title}</h3>
+    ${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`;
+}
+
+function renderAdjudication() {
+  $("adjudicate").hidden = false;
+  const p = state.protocol?.tier;
+  const a = state.assistant?.tier;
+
+  if (a && p && a !== p) {
+    $("verdict").innerHTML = `<div class="disagree">
+      <b>They disagree.</b>
+      <span>The protocol says <b>${p}</b> on the numbers; the assistant says <b>${a}</b>
+      after reading the letter. You decide which is right.</span></div>`;
+  } else if (a && p) {
+    $("verdict").innerHTML = `<div class="agree">
+      Protocol and assistant both say <b>${p}</b>. You can still override.</div>`;
+  } else {
+    $("verdict").innerHTML = `<div class="agree">
+      Protocol says <b>${p}</b>. No assistant opinion on this case.</div>`;
+  }
+  paintPicker();
+}
+
+function paintPicker() {
+  for (const btn of $("picker").children) {
+    btn.className = btn.dataset.tier === state.final ? "sel-" + state.final : "";
+  }
+  const overriding =
+    (state.protocol && state.final !== state.protocol.tier) ||
+    (state.assistant && state.final !== state.assistant.tier);
+  $("why-required").hidden = !overriding;
+}
+
+$("picker").onclick = (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  state.final = btn.dataset.tier;
+  paintPicker();
+};
+
+$("btn-sign").onclick = async () => {
+  if (!state.final) return;
+  const overriding =
+    (state.protocol && state.final !== state.protocol.tier) ||
+    (state.assistant && state.final !== state.assistant.tier);
+  const rationale = $("rationale").value.trim();
+  if (overriding && !rationale) {
+    $("rationale").focus();
+    $("signed").innerHTML =
+      '<div class="err">You are overriding an opinion — give a one-line reason first.</div>';
+    return;
+  }
+
+  const res = await fetch("/api/signoff", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      protocolTier: state.protocol?.tier ?? null,
+      assistantTier: state.assistant?.tier ?? null,
+      finalTier: state.final,
+      rationale,
+      caseData: readCase(),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    $("signed").innerHTML = `<div class="err">${esc(data.error)}</div>`;
+    return;
+  }
+  $("signed").innerHTML = `<div class="signed">Signed off as <b>${state.final}</b> — ${TARGETS[state.final]}. Recorded.</div>`;
+  loadLedger();
+};
+
+async function loadLedger() {
+  const d = await (await fetch("/api/decisions")).json();
+  if (!d.count) return ($("ledger").innerHTML = "");
+  $("ledger").innerHTML =
+    `<b>${d.count}</b> case${d.count === 1 ? "" : "s"} signed off · ` +
+    `protocol and assistant disagreed on <b>${d.disagreements}</b> · ` +
+    `hematologist overrode the assistant <b>${d.overrodeAssistant}</b> time${d.overrodeAssistant === 1 ? "" : "s"}.`;
+}
+loadLedger();
+</script>
+</body>
+</html>
