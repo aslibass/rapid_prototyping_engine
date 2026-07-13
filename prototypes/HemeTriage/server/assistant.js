@@ -22,17 +22,23 @@ function getClient() {
   return client;
 }
 
+// A referral letter routinely omits values, and a missing platelet count must come
+// back as null rather than a guess. Structured outputs express "or null" with
+// anyOf — NOT with a `type: [...]` union, which is rejected outright as soon as the
+// member schema carries an enum ("Enum value 'M' does not match declared type").
+const orNull = (schema) => ({ anyOf: [schema, { type: "null" }] });
+
 const EXTRACT_SCHEMA = {
   type: "object",
   properties: {
-    age: { type: ["integer", "null"] },
-    sex: { type: ["string", "null"], enum: ["M", "F", null] },
-    hb: { type: ["number", "null"], description: "Haemoglobin, g/L" },
-    wbc: { type: ["number", "null"], description: "White cell count, x10^9/L" },
-    plt: { type: ["number", "null"], description: "Platelets, x10^9/L" },
-    anc: { type: ["number", "null"], description: "Absolute neutrophil count, x10^9/L" },
-    ldh: { type: ["number", "null"], description: "LDH, U/L" },
-    nodeSizeCm: { type: ["number", "null"], description: "Largest nodal mass, cm" },
+    age: orNull({ type: "integer" }),
+    sex: orNull({ type: "string", enum: ["M", "F"] }),
+    hb: orNull({ type: "number", description: "Haemoglobin, g/L" }),
+    wbc: orNull({ type: "number", description: "White cell count, x10^9/L" }),
+    plt: orNull({ type: "number", description: "Platelets, x10^9/L" }),
+    anc: orNull({ type: "number", description: "Absolute neutrophil count, x10^9/L" }),
+    ldh: orNull({ type: "number", description: "LDH, U/L" }),
+    nodeSizeCm: orNull({ type: "number", description: "Largest nodal mass, cm" }),
     blastsOnFilm: { type: "boolean", description: "Blasts reported on the blood film" },
     feverOrSepsis: { type: "boolean", description: "Fever or clinical signs of sepsis" },
     activeBleeding: { type: "boolean" },
