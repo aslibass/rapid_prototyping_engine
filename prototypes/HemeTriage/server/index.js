@@ -15,9 +15,32 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(express.static(join(__dirname, "../public")));
 
+// The deployed app is public, and the two endpoints below spend real money on a
+// personal API key. Gate those — and only those. The protocol, the rail and the
+// sign-off stay open, so a fumbled code can never dead-end the demo on stage.
+// If ACCESS_CODE is unset (local dev) the gate is a no-op.
+const ACCESS_CODE = process.env.ACCESS_CODE || "";
+
+function requireCode(req, res, next) {
+  if (!ACCESS_CODE) return next();
+  if (req.get("x-access-code") === ACCESS_CODE) return next();
+  res.status(401).json({
+    error: "Access code required to use the assistant. The protocol still runs without it.",
+    needsCode: true,
+  });
+}
+
 app.get("/api/config", (req, res) => {
-  res.json({ assistantAvailable: isConfigured(), provenance: PROVENANCE });
+  res.json({
+    assistantAvailable: isConfigured(),
+    codeRequired: Boolean(ACCESS_CODE),
+    provenance: PROVENANCE,
+  });
 });
+
+// Lets the client confirm a code before the first real call, so you find out the
+// code is wrong while setting up — not mid-demo.
+app.post("/api/unlock", requireCode, (req, res) => res.json({ ok: true }));
 
 app.get("/api/cases", (req, res) => res.json(SAMPLE_CASES));
 
@@ -27,7 +50,7 @@ app.post("/api/protocol", (req, res) => {
   res.json(runProtocol(req.body ?? {}));
 });
 
-app.post("/api/extract", async (req, res) => {
+app.post("/api/extract", requireCode, async (req, res) => {
   const note = req.body?.note?.trim();
   if (!note) return res.status(400).json({ error: "No referral letter supplied." });
   if (!isConfigured()) {
@@ -43,7 +66,7 @@ app.post("/api/extract", async (req, res) => {
   }
 });
 
-app.post("/api/opinion", async (req, res) => {
+app.post("/api/opinion", requireCode, async (req, res) => {
   if (!isConfigured()) {
     return res.status(503).json({
       error: "No ANTHROPIC_API_KEY set — the assistant is unavailable. The protocol tier still stands.",

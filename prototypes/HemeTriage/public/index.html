@@ -58,6 +58,11 @@
   header .conn { font: 500 11.5px/1 var(--mono); color: #a29fb8; }
   header .conn b { color: #7fd6a5; font-weight: 500; }
   header .conn b.off { color: #e0a06a; }
+  .unlock {
+    background: none; border: 1px solid #4a4670; color: #a29fb8; cursor: pointer;
+    font: 500 11.5px/1 var(--mono); padding: 5px 9px;
+  }
+  .unlock:hover { border-color: #9b8fe0; color: #ded9ee; }
 
   .provenance {
     background: #26243d; color: #b3aecb; font-size: 11.5px; line-height: 1.5;
@@ -450,7 +455,17 @@ const FLAGS = [
   { k: "severeSymptoms", label: "Severe symptoms", narrative: true },
 ];
 
-const state = { protocol: null, assistant: null, mine: null, online: false };
+const state = {
+  protocol: null, assistant: null, mine: null, online: false,
+  codeRequired: false,
+  code: sessionStorage.getItem("hemetriage-code") || "",
+};
+
+// Only the two endpoints that spend money are gated. Everything else is open.
+const headers = () => ({
+  "Content-Type": "application/json",
+  ...(state.code ? { "x-access-code": state.code } : {}),
+});
 
 // ---------- build the report + flags ----------
 $("report").innerHTML = [...DEMOG, ...ANALYTES].map((a) => `
@@ -529,16 +544,43 @@ fetch("/api/cases").then((r) => r.json()).then((cases) => {
 
 fetch("/api/config").then((r) => r.json()).then((cfg) => {
   state.online = cfg.assistantAvailable;
-  $("conn").innerHTML = cfg.assistantAvailable
-    ? "assistant <b>online</b>"
-    : 'assistant <b class="off">offline</b> — the protocol still runs';
+  state.codeRequired = cfg.codeRequired;
   $("pull").disabled = !cfg.assistantAvailable;
+  paintConn();
   const p = cfg.provenance;
   $("provenance").innerHTML =
     `Categories from <b>${esc(p.framework.name)}</b> — Emergency red flags, then 30 / 90 / 365 days. ` +
     `Thresholds from <b>${esc(p.thresholds.name)}</b> (<a href="${p.thresholds.url}" target="_blank" rel="noopener">published criteria</a>), ` +
     `because NSW has not published haematology criteria as at July 2026. Swap the rule table for local criteria and nothing else changes.`;
 });
+
+function paintConn() {
+  const el = $("conn");
+  if (!state.online) {
+    el.innerHTML = 'assistant <b class="off">offline</b> — the protocol still runs';
+    return;
+  }
+  if (state.codeRequired && !state.code) {
+    el.innerHTML = '<button class="unlock" id="unlock">assistant <b class="off">locked</b> — enter code</button>';
+    $("unlock").onclick = askCode;
+    return;
+  }
+  el.innerHTML = "assistant <b>online</b>";
+}
+
+async function askCode() {
+  const code = prompt("Access code for the assistant:\n\n(The protocol and sign-off work without it.)");
+  if (!code) return false;
+  const res = await fetch("/api/unlock", { method: "POST", headers: { ...headers(), "x-access-code": code } });
+  if (!res.ok) {
+    alert("That code was not accepted. The protocol still runs without it.");
+    return false;
+  }
+  state.code = code;
+  sessionStorage.setItem("hemetriage-code", code);
+  paintConn();
+  return true;
+}
 
 function clearVerdicts() {
   state.protocol = state.assistant = state.mine = null;
@@ -563,8 +605,9 @@ $("pull").onclick = async () => {
   b.disabled = true; b.textContent = "Reading…";
   $("input-fault").innerHTML = "";
   try {
+    if (state.codeRequired && !state.code && !(await askCode())) throw new Error("Access code required to read the letter. Fill the report in by hand — the protocol runs either way.");
     const res = await fetch("/api/extract", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: headers(),
       body: JSON.stringify({ note }),
     });
     const data = await res.json();
@@ -602,10 +645,14 @@ $("run").onclick = async () => {
     $("assistant").innerHTML = '<p class="waiting">Assistant offline — no API key. The protocol stands on its own.</p>';
     return;
   }
+  if (state.codeRequired && !state.code && !(await askCode())) {
+    $("assistant").innerHTML = '<p class="waiting">Assistant locked — no access code. The protocol stands on its own.</p>';
+    return;
+  }
   $("assistant").innerHTML = '<p class="waiting">Reading the referral…</p>';
   try {
     const res = await fetch("/api/opinion", {
-      method: "POST", headers: { "Content-Type": "application/json" },
+      method: "POST", headers: headers(),
       body: JSON.stringify(kase),
     });
     const data = await res.json();
